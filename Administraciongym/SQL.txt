@@ -1,0 +1,238 @@
+-- Creación de la base de datos
+CREATE DATABASE Administraciongym;
+USE Administraciongym;
+
+-- Tabla de Usuarios
+CREATE TABLE usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(50) NOT NULL UNIQUE,
+    contrasena VARCHAR(255) NOT NULL
+);
+
+-- Insertar usuario administrador por defecto (contraseña: admin123)
+INSERT INTO usuarios (usuario, contrasena) VALUES ('admin', '$2y$10$WdRbdvzC/Ov4dJYnm9Zdie.BuoQ9lVgeBXKqMQEuKTtRX3JQsFmrG');
+
+-- Tabla de datos personales
+CREATE TABLE datospersonales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    apellido1 VARCHAR(50) NOT NULL,
+    apellido2 VARCHAR(50),
+    fechanacimiento DATE,
+    telefono VARCHAR(15) NOT NULL,
+    correo VARCHAR(100),
+    direccion TEXT
+);
+
+-- Tabla de material médico
+CREATE TABLE materialmedico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    altura DECIMAL(5,2), -- En centímetros
+    peso DECIMAL(5,2), -- En kilogramos
+    imc DECIMAL(4,2), -- Índice de masa corporal
+    condicionesmedicas TEXT,
+    alergias TEXT,
+    medicamentos TEXT,
+    presionarterial VARCHAR(20),
+    frecuenciacardiaca INT
+);
+
+-- Tabla de registro de información de cliente
+CREATE TABLE registrocliente (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iddatospersonales INT NOT NULL,
+    idmaterialmedico INT NOT NULL,
+    fecharegistro DATE NOT NULL,
+    objetivos TEXT,
+    notas TEXT,
+    FOREIGN KEY (iddatospersonales) REFERENCES datospersonales(id),
+    FOREIGN KEY (idmaterialmedico) REFERENCES materialmedico(id)
+);
+
+-- Tabla de status
+CREATE TABLE status (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL,
+    descripcion TEXT
+);
+
+-- Tabla de gestión de datos
+CREATE TABLE gestiondedatos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idcliente INT NOT NULL,
+    idstatus INT NOT NULL,
+    fechaultimaactualizacion DATE NOT NULL,
+    observaciones TEXT,
+    FOREIGN KEY (idcliente) REFERENCES registrocliente(id),
+    FOREIGN KEY (idstatus) REFERENCES status(id)
+);
+
+-- Tabla de inscripciones
+CREATE TABLE inscripcion (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idgestiondatos INT NOT NULL,
+    fechainscripcion DATE NOT NULL,
+    fechavencimiento DATE NOT NULL,
+    tipomembresia VARCHAR(30) NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (idgestiondatos) REFERENCES gestiondedatos(id)
+);
+
+-- Tabla de gestión de cuotas
+CREATE TABLE gestiondecuotas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idinscripcion INT NOT NULL,
+    fechapago DATE NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    metodopago VARCHAR(30) NOT NULL,
+    comprobante VARCHAR(100),
+    estado VARCHAR(20) NOT NULL,
+    observaciones TEXT,
+    FOREIGN KEY (idinscripcion) REFERENCES inscripcion(id)
+);
+
+-- Tabla de mantenimiento
+CREATE TABLE mantenimiento (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descripcion TEXT NOT NULL,
+    fecha DATE NOT NULL,
+    responsable VARCHAR(100),
+    estado VARCHAR(30) DEFAULT 'Pendiente'
+);
+
+-- Tabla de inventario
+CREATE TABLE inventario (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_item VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    cantidad INT NOT NULL,
+    categoria VARCHAR(50),
+    fecha_ingreso DATE,
+    estado VARCHAR(30) DEFAULT 'Disponible'
+);
+
+-- Tabla de análisis de datos
+CREATE TABLE analisisdatos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idcliente INT NOT NULL,
+    fecha DATE NOT NULL,
+    tipo_analisis VARCHAR(50),
+    resultado TEXT,
+    observaciones TEXT,
+    FOREIGN KEY (idcliente) REFERENCES registrocliente(id)
+);
+
+-- Tabla de gestión de personal
+CREATE TABLE gestionpersonal (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    puesto VARCHAR(50) NOT NULL,
+    fecha_ingreso DATE,
+    correo VARCHAR(100),
+    telefono VARCHAR(20),
+    estado VARCHAR(20) DEFAULT 'Activo'
+);
+
+-- Insertar algunos status predeterminados
+INSERT INTO status (nombre, descripcion) VALUES 
+('Activo', 'Cliente con membresía vigente'),
+('Inactivo', 'Cliente con membresía vencida'),
+('Suspendido', 'Cliente con membresía suspendida temporalmente'),
+('Dadodebaja', 'Cliente que ha cancelado su membresía');
+
+-- Insertar algunos tipos de análisis predeterminados para la tabla analisisdatos
+-- Estos valores se pueden usar como referencia al crear nuevos registros
+INSERT INTO status (nombre, descripcion) VALUES 
+('Progreso físico', 'Evaluación del progreso físico del cliente'),
+('Evaluación nutricional', 'Análisis de hábitos alimenticios y recomendaciones'),
+('Evaluación médica', 'Resultados de evaluación médica general'),
+('Test de capacidad física', 'Evaluación de resistencia, fuerza y flexibilidad');
+
+-- Índices para mejorar el rendimiento de las consultas frecuentes
+CREATE INDEX idx_registrocliente_datospersonales ON registrocliente(iddatospersonales);
+CREATE INDEX idx_registrocliente_materialmedico ON registrocliente(idmaterialmedico);
+CREATE INDEX idx_gestiondedatos_cliente ON gestiondedatos(idcliente);
+CREATE INDEX idx_gestiondedatos_status ON gestiondedatos(idstatus);
+CREATE INDEX idx_inscripcion_gestiondatos ON inscripcion(idgestiondatos);
+CREATE INDEX idx_gestiondecuotas_inscripcion ON gestiondecuotas(idinscripcion);
+CREATE INDEX idx_analisisdatos_cliente ON analisisdatos(idcliente);
+
+-- Algunas vistas útiles para consultas frecuentes
+
+-- Vista para obtener clientes con sus datos personales
+CREATE VIEW vista_clientes AS
+SELECT 
+    rc.id AS id_cliente,
+    dp.nombre,
+    dp.apellido1,
+    dp.apellido2,
+    dp.telefono,
+    dp.correo,
+    rc.fecharegistro,
+    mm.altura,
+    mm.peso,
+    mm.imc
+FROM 
+    registrocliente rc
+    INNER JOIN datospersonales dp ON rc.iddatospersonales = dp.id
+    INNER JOIN materialmedico mm ON rc.idmaterialmedico = mm.id;
+
+-- Vista para obtener inscripciones activas con información del cliente
+CREATE VIEW vista_inscripciones_activas AS
+SELECT 
+    i.id AS id_inscripcion,
+    i.fechainscripcion,
+    i.fechavencimiento,
+    i.tipomembresia,
+    i.monto,
+    rc.id AS id_cliente,
+    dp.nombre,
+    dp.apellido1,
+    dp.apellido2,
+    dp.telefono,
+    s.nombre AS estado
+FROM 
+    inscripcion i
+    INNER JOIN gestiondedatos gd ON i.idgestiondatos = gd.id
+    INNER JOIN registrocliente rc ON gd.idcliente = rc.id
+    INNER JOIN datospersonales dp ON rc.iddatospersonales = dp.id
+    INNER JOIN status s ON gd.idstatus = s.id
+WHERE 
+    i.fechavencimiento >= CURDATE() AND s.nombre = 'Activo';
+
+-- Vista para obtener pagos pendientes
+CREATE VIEW vista_pagos_pendientes AS
+SELECT 
+    gc.id AS id_cuota,
+    gc.fechapago,
+    gc.monto,
+    gc.estado,
+    i.id AS id_inscripcion,
+    i.tipomembresia,
+    rc.id AS id_cliente,
+    dp.nombre,
+    dp.apellido1,
+    dp.apellido2,
+    dp.telefono
+FROM 
+    gestiondecuotas gc
+    INNER JOIN inscripcion i ON gc.idinscripcion = i.id
+    INNER JOIN gestiondedatos gd ON i.idgestiondatos = gd.id
+    INNER JOIN registrocliente rc ON gd.idcliente = rc.id
+    INNER JOIN datospersonales dp ON rc.iddatospersonales = dp.id
+WHERE 
+    gc.estado = 'pendiente';
+
+-- Vista para obtener información del personal activo
+CREATE VIEW vista_personal_activo AS
+SELECT 
+    id,
+    nombre,
+    puesto,
+    fecha_ingreso,
+    correo,
+    telefono
+FROM 
+    gestionpersonal
+WHERE 
+    estado = 'Activo';
